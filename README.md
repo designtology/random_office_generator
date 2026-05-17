@@ -2,6 +2,8 @@
 
 A procedural office building generator and interactive 3D viewer. Generate office floor plans via the browser or the command line, explore them in Three.js, and save them as JSON.
 
+![screenshot](screenshot.jpg)
+
 ---
 
 ## What it does
