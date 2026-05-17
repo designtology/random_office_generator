@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Office Floor Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d0e14;
+      color: #e0e0e8;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 48px;
+      background: rgba(10, 11, 18, 0.92);
+      border-bottom: 1px solid #2a2d3e;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+
+    #topbar h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #9ab4f0;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .sep { width: 1px; height: 24px; background: #2a2d3e; flex-shrink: 0; }
+
+    #file-btn {
+      background: #2337a0;
+      color: #ccd8ff;
+      border: 1px solid #3a52c8;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    #file-btn:hover { background: #2d45be; }
+
+    #file-input { display: none; }
+
+    #json-select {
+      background: #1a1d2e;
+      color: #c8cce4;
+      border: 1px solid #2a2d3e;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 180px;
+    }
+    #json-select option { background: #1a1d2e; }
+
+    #info-label {
+      font-size: 12px;
+      color: #6870a0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Layer toggles ── */
+    .toggle-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .toggle-btn {
+      background: #1a1d2e;
+      color: #8890b8;
+      border: 1px solid #2a2d3e;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle-btn.active {
+      background: #223060;
+      color: #c0d0ff;
+      border-color: #3a52a8;
+    }
+    .toggle-btn:hover { border-color: #5060a0; }
+
+    /* ── Action buttons (randomize / save) ── */
+    .action-group {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    #randomize-btn {
+      background: #1e4a22;
+      color: #7de890;
+      border: 1px solid #2e7a38;
+      border-radius: 6px;
+      padding: 5px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #randomize-btn:hover  { background: #255a2a; }
+    #randomize-btn.busy   { opacity: 0.5; cursor: default; }
+
+    #save-btn {
+      background: #2a2200;
+      color: #f0c040;
+      border: 1px solid #5a4a00;
+      border-radius: 6px;
+      padding: 5px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #save-btn:hover        { background: #362c00; }
+    #save-btn:disabled     { opacity: 0.35; cursor: default; }
+
+    /* ── Hover tooltip ── */
+    #asset-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 300;
+      background: rgba(8, 10, 20, 0.92);
+      border: 1px solid #2a3060;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #b0c0f0;
+      white-space: nowrap;
+      display: none;
+      backdrop-filter: blur(4px);
+    }
+
+    /* ── Drop overlay ── */
+    #drop-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 20, 60, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 200;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #drop-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #drop-icon {
+      font-size: 64px;
+      line-height: 1;
+    }
+    #drop-text {
+      font-size: 22px;
+      color: #9ab4f0;
+      font-weight: 500;
+    }
+    #drop-sub {
+      font-size: 14px;
+      color: #5060a0;
+    }
+
+    /* ── Welcome screen ── */
+    #welcome {
+      position: fixed;
+      inset: 48px 0 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      pointer-events: none;
+    }
+    #welcome.hidden { display: none; }
+
+    #welcome-icon { font-size: 72px; opacity: 0.25; }
+    #welcome-title {
+      font-size: 26px;
+      color: #5060a0;
+      font-weight: 500;
+    }
+    #welcome-sub {
+      font-size: 14px;
+      color: #3a4060;
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    /* ── Bottom stats bar ── */
+    #statusbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 26px;
+      background: rgba(10, 11, 18, 0.85);
+      border-top: 1px solid #1e2030;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 14px;
+      font-size: 11px;
+      color: #50587a;
+      z-index: 100;
+    }
+    #statusbar span { color: #7880a8; }
+
+    /* ── Controls hint ── */
+    #controls-hint {
+      position: fixed;
+      bottom: 32px;
+      right: 14px;
+      font-size: 11px;
+      color: #2a3050;
+      line-height: 1.8;
+      text-align: right;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <h1>Office Floor Viewer</h1>
+    <div class="sep"></div>
+    <button id="file-btn">Open JSON&hellip;</button>
+    <input type="file" id="file-input" accept=".json" />
+    <select id="json-select"><option value="">— pre-generated floors —</option></select>
+    <div class="sep"></div>
+    <div class="toggle-group">
+      <button class="toggle-btn active" data-layer="floor">Floor</button>
+      <button class="toggle-btn active" data-layer="walls">Walls</button>
+      <button class="toggle-btn active" data-layer="interior">Interior</button>
+      <button class="toggle-btn active" data-layer="labels">Labels</button>
+    </div>
+    <div class="sep"></div>
+    <div id="info-label">No file loaded</div>
+
+    <div class="action-group">
+      <button id="randomize-btn">&#x2728; Randomize</button>
+      <button id="save-btn" disabled>&#x1F4BE; Save</button>
+    </div>
+  </div>
+
+  <!-- Three.js canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- Hover tooltip -->
+  <div id="asset-tooltip"></div>
+
+  <!-- Drop overlay -->
+  <div id="drop-overlay">
+    <div id="drop-icon">📂</div>
+    <div id="drop-text">Drop JSON floor file</div>
+    <div id="drop-sub">Generated by scripts/generate-building.mjs</div>
+  </div>
+
+  <!-- Welcome screen -->
+  <div id="welcome">
+    <div id="welcome-icon">🏢</div>
+    <div id="welcome-title">No floor loaded</div>
+    <div id="welcome-sub">
+      Open a JSON floor file via the button above,<br>
+      drag &amp; drop a .json file, or select from the<br>
+      pre-generated list (if any exist in public/data/).
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div id="statusbar">
+    <div>Cols: <span id="stat-cols">—</span></div>
+    <div>Rows: <span id="stat-rows">—</span></div>
+    <div>Rooms: <span id="stat-rooms">—</span></div>
+    <div>Seed: <span id="stat-seed">—</span></div>
+    <div>Style: <span id="stat-style">—</span></div>
+  </div>
+
+  <!-- Controls hint -->
+  <div id="controls-hint">
+    Orbit: left drag &nbsp;|&nbsp; Pan: right drag &nbsp;|&nbsp; Zoom: scroll
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
